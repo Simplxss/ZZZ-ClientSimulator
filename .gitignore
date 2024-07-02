@@ -1,0 +1,9 @@
+debug/
+target/
+
+/*.json
+Cargo.lock
+
+**/*.rs.bk
+*.pdb
+.vs/

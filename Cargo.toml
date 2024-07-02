@@ -1,0 +1,17 @@
+[package]
+name = "ZZZ-ClientSimulator"
+version = "0.0.1"
+authors = ["Simplxs <simplxsa@gamil.com>"]
+edition = "2021"
+
+[dependencies]
+reqwest = { version = "0.12.5", features = ["blocking", "json"] }
+serde = { version = "1.0.104", features = ["derive"] }
+rsa = "0.9.6"
+base64 = "0.13"
+regex = "1.10.5"
+serde_json = "1.0.48"
+
+[[bin]]
+name = "simulator"
+path = "src/main.rs"
