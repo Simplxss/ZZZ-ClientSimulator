@@ -1,6 +1,11 @@
 use rsa::{
-    pkcs8::DecodePrivateKey, traits::PublicKeyParts, Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey,
+    pkcs8::{DecodePrivateKey, DecodePublicKey},
+    traits::PublicKeyParts,
+    Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey,
 };
+
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
 
 // from https://github.com/thexeondev/ZZZKeys
 const DISPATCH_KEY_2: &str = "-----BEGIN PRIVATE KEY-----
@@ -49,10 +54,19 @@ GiO8aas4ucNh+tY0sawTqbIyxnnItiAexo7fIJovTbWcktORTM1Tb/T0Qw7hs79I
 aXs4cquN1RtEC8w=
 -----END PRIVATE KEY-----";
 
+const PASSWORD_KEY: &str = "-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDDvekdPMHN3AYhm/vktJT+YJr7
+cI5DcsNKqdsx5DZX0gDuWFuIjzdwButrIYPNmRJ1G8ybDIF7oDW2eEpm5sMbL9zs
+9ExXCdvqrn51qELbqj0XxtMTIpaCHFSI50PfPpTFV9Xt/hmyVwokoOXFlAEgCn+Q
+CgGs52bFoYMtyi+xEQIDAQAB
+-----END PUBLIC KEY-----";
+
+const SIGN_KEY: &[u8] = b"0ebc517adb1b62c6b408df153331f9aa";
+
 pub fn decrypt_content(content: &str, rsa_ver: i32) -> Result<String, String> {
     let priv_key = match rsa_ver {
-        2 => RsaPrivateKey::from_pkcs8_pem(DISPATCH_KEY_2).expect("failed to parse private key"),
-        3 => RsaPrivateKey::from_pkcs8_pem(DISPATCH_KEY_3).expect("failed to parse private key"),
+        2 => RsaPrivateKey::from_pkcs8_pem(DISPATCH_KEY_2).unwrap(),
+        3 => RsaPrivateKey::from_pkcs8_pem(DISPATCH_KEY_3).unwrap(),
         _ => return Err("unknown rsa ver".to_string()),
     };
 
@@ -74,4 +88,31 @@ pub fn decrypt_content(content: &str, rsa_ver: i32) -> Result<String, String> {
         Ok(s) => Ok(s),
         Err(e) => Err(format!("failed to convert to utf8: {}", e)),
     };
+}
+
+pub fn password_encrypt(password: &str) -> Result<String, String> {
+    let pub_key = match RsaPublicKey::from_public_key_pem(PASSWORD_KEY) {
+        Ok(key) => key,
+        Err(e) => return Err(format!("failed to parse public key: {}", e)),
+    };
+
+    let encrypted = match pub_key.encrypt(
+        &mut rand::thread_rng(),
+        Pkcs1v15Encrypt,
+        password.as_bytes(),
+    ) {
+        Ok(encrypted) => encrypted,
+        Err(e) => return Err(format!("failed to encrypt: {}", e)),
+    };
+
+    return Ok(base64::encode(encrypted));
+}
+
+pub fn sign_data(data: &str) -> String {
+    type HmacSha256 = Hmac<Sha256>;
+
+    let mut mac = HmacSha256::new_from_slice(SIGN_KEY).unwrap();
+    mac.update(data.as_bytes());
+    let result = mac.finalize();
+    return hex::encode(result.into_bytes());
 }

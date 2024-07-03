@@ -7,11 +7,17 @@ edition = "2021"
 [dependencies]
 reqwest = { version = "0.12.5", features = ["blocking", "json", "socks"] }
 serde = { version = "1.0.104", features = ["derive"] }
+serde_with = "3.8.2"
+serde_json = "1.0.48"
 rsa = { version = "0.9.6", features = ["sha2"] }
+sha2 = "0.10.8"
+hmac = "0.12.1"
 rand = "0.8.4"
+uuid = { version = "1.9.1", features = ["v4"]}
+qrcode = "0.14.0"
+hex = "0.4.3"
 base64 = "0.13"
 regex = "1.10.5"
-serde_json = "1.0.48"
 
 [[bin]]
 name = "simulator"
