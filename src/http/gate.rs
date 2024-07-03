@@ -15,7 +15,7 @@ pub struct RegionSimpleInfo {
 
 #[derive(serde::Deserialize)]
 struct QueryDispatch {
-    regions: Vec<RegionSimpleInfo>,
+    region_list: Vec<RegionSimpleInfo>,
     retcode: i32,
 }
 
@@ -38,22 +38,28 @@ pub fn get_regions(
     params.insert("sub_channel_id", sub_channel_id.to_string());
     params.insert("platform", platform.to_string());
 
-    let url = reqwest::Url::parse_with_params(
+    let url = match reqwest::Url::parse_with_params(
         format!("{}{}", domain[dispatch_name], "query_dispatch").as_str(),
         &params,
-    )
-    .expect("Invalid URL");
-    let res = reqwest::blocking::get(url).expect("Failed to send request");
+    ) {
+        Ok(url) => url,
+        Err(e) => return Err(format!("Failed to parse url: {}", e)),
+    };
+    let res = match reqwest::blocking::get(url) {
+        Ok(res) => res,
+        Err(e) => return Err(format!("Failed to send request: {}", e)),
+    };
 
-    let json = res
-        .json::<QueryDispatch>()
-        .expect("Decode request text error");
+    let json = match res.json::<QueryDispatch>() {
+        Ok(json) => json,
+        Err(e) => return Err(format!("Failed to parse json: {}", e)),
+    };
 
     if json.retcode != 0 {
         return Err(format!("Failed to get regions, retcode: {}", json.retcode));
     }
 
-    return Ok(json.regions);
+    return Ok(json.region_list);
 }
 
 #[derive(serde::Deserialize)]
@@ -161,14 +167,14 @@ pub struct RegionExt {
 
 #[derive(serde::Deserialize)]
 pub struct RegionInfo {
-    pub cdn_conf_ext: CdnConfExt,
+    pub cdn_conf_ext: Option<CdnConfExt>,
     pub msg: String,
-    pub region_ext: RegionExt,
+    pub region_ext: Option<RegionExt>,
     pub region_name: String,
     pub retcode: i32,
-    pub stop_begin_time: i32,
-    pub stop_end_time: i32,
-    pub stop_jump_url: String,
+    pub stop_begin_time: Option<i32>,
+    pub stop_end_time: Option<i32>,
+    pub stop_jump_url: Option<String>,
     pub title: String,
 }
 
@@ -197,15 +203,29 @@ pub fn get_region(
     params.insert("channel_id", channel_id.to_string());
     params.insert("sub_channel_id", sub_channel_id.to_string());
 
-    let url = reqwest::Url::parse_with_params(dispatch_url, &params).expect("Invalid URL");
-    let res = reqwest::blocking::get(url).expect("Failed to send request");
+    let url = match reqwest::Url::parse_with_params(dispatch_url, &params) {
+        Ok(url) => url,
+        Err(e) => return Err(format!("Failed to parse url: {}", e)),
+    };
+    let res = match reqwest::blocking::get(url) {
+        Ok(res) => res,
+        Err(e) => return Err(format!("Failed to send request: {}", e)),
+    };
 
-    let json = res.json::<QueryGateway>().expect("Parsing JSON failed");
+    let json = match res.json::<QueryGateway>() {
+        Ok(json) => json,
+        Err(e) => return Err(format!("Failed to parse QueryGateway: {}", e)),
+    };
 
-    let content = serde_json::from_str::<RegionInfo>(
-        super::util::decrypt_content(&json.content, rsa_ver).as_str(),
-    )
-    .expect("Parsing RegionInfo failed");
+    let content = match serde_json::from_str::<RegionInfo>(
+        match super::util::decrypt_content(&json.content, rsa_ver) {
+            Ok(content) => content,
+            Err(e) => return Err(format!("Failed to decrypt content: {}", e)),
+        }.as_str()
+    ) {
+        Ok(content) => content,
+        Err(e) => return Err(format!("Failed to parse RegionInfo: {}", e)),
+    };
 
     return Ok(content);
 }
