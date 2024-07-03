@@ -182,13 +182,14 @@ struct AuthData {
     token: String,
 }
 
+#[serde_with::skip_serializing_none]
 #[derive(serde::Serialize)]
 struct LoginGameRequest {
     data: String,
     app_id: i32,
     channel_id: i32,
     device: String,
-    sign: String,
+    sign: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -631,15 +632,16 @@ impl Sdk {
             token: account.token.clone(),
         };
         let inr_data = serde_json::to_string(&auth_data).unwrap();
-        let sign = super::util::sign_data(&inr_data);
 
-        let data = LoginGameRequest {
+        let mut data = LoginGameRequest {
             data: inr_data,
             app_id: 12,
             channel_id: 1,
             device: self.device.device_id.clone(),
-            sign: sign,
+            sign: Option::None,
         };
+
+        data.sign = Option::Some(super::util::sign_data(&data));
 
         let res = match reqwest::blocking::Client::new()
             .post(format!("{}{}", SDK_DOMAIN, "nap_cn/combo/granter/login/v2/login").as_str())

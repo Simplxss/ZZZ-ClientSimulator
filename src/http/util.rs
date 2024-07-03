@@ -1,3 +1,6 @@
+use itertools::Itertools;
+use std::collections::HashMap;
+
 use rsa::{
     pkcs8::{DecodePrivateKey, DecodePublicKey},
     traits::PublicKeyParts,
@@ -5,6 +8,7 @@ use rsa::{
 };
 
 use hmac::{Hmac, Mac};
+use serde_json::Value;
 use sha2::Sha256;
 
 // from https://github.com/thexeondev/ZZZKeys
@@ -61,7 +65,7 @@ cI5DcsNKqdsx5DZX0gDuWFuIjzdwButrIYPNmRJ1G8ybDIF7oDW2eEpm5sMbL9zs
 CgGs52bFoYMtyi+xEQIDAQAB
 -----END PUBLIC KEY-----";
 
-const SIGN_KEY: &[u8] = b"0ebc517adb1b62c6b408df153331f9aa";
+const SIGN_KEY: &[u8] = b"";
 
 pub fn decrypt_content(content: &str, rsa_ver: i32) -> Result<String, String> {
     let priv_key = match rsa_ver {
@@ -108,11 +112,38 @@ pub fn password_encrypt(password: &str) -> Result<String, String> {
     return Ok(base64::encode(encrypted));
 }
 
-pub fn sign_data(data: &str) -> String {
-    type HmacSha256 = Hmac<Sha256>;
+pub fn sign_data<T>(data: &T) -> String
+where
+    T: serde::ser::Serialize,
+{
+    let t = serde_json::to_value(&data).unwrap();
+    let t1: HashMap<String, Value> = serde_json::from_value(t).unwrap();
+    let t2: HashMap<String, String> = t1
+        .iter()
+        .map(|(k, v)| {
+            (
+                k.clone(),
+                match v {
+                    Value::String(s) => s.clone(),
+                    _ => v.to_string(),
+                },
+            )
+        })
+        .collect();
 
+    let mut keys = t2.keys().sorted();
+    let mut s = match keys.next() {
+        Some(key) => format!("{}={}", key, t2[key]),
+        None => return String::new(),
+    };
+
+    for key in keys {
+        s.push_str(format!("&{}={}", key, t2[key]).as_str());
+    }
+
+    type HmacSha256 = Hmac<Sha256>;
     let mut mac = HmacSha256::new_from_slice(SIGN_KEY).unwrap();
-    mac.update(data.as_bytes());
+    mac.update(s.as_bytes());
     let result = mac.finalize();
     return hex::encode(result.into_bytes());
 }
