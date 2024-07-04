@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+
 use std::collections::HashMap;
 
 #[derive(serde::Deserialize)]
@@ -14,9 +15,9 @@ pub struct RegionSimpleInfo {
 }
 
 #[derive(serde::Deserialize)]
-struct QueryDispatch {
-    region_list: Vec<RegionSimpleInfo>,
-    retcode: i32,
+pub struct DispatchInfo {
+    pub region_list: Vec<RegionSimpleInfo>,
+    pub retcode: i32,
 }
 
 pub fn get_regions(
@@ -26,7 +27,7 @@ pub fn get_regions(
     channel_id: i32,
     sub_channel_id: i32,
     platform: i32,
-) -> Result<Vec<RegionSimpleInfo>, String> {
+) -> Result<DispatchInfo, String> {
     let mut domain = HashMap::new();
     domain.insert("cn", "https://globaldp-prod-cn01.juequling.com/");
     domain.insert("os", "");
@@ -50,16 +51,10 @@ pub fn get_regions(
         Err(e) => return Err(format!("Failed to send request: {}", e)),
     };
 
-    let json = match res.json::<QueryDispatch>() {
-        Ok(json) => json,
-        Err(e) => return Err(format!("Failed to parse json: {}", e)),
+    return match res.json::<DispatchInfo>() {
+        Ok(json) => Ok(json),
+        Err(e) => Err(format!("Failed to parse json: {}", e)),
     };
-
-    if json.retcode != 0 {
-        return Err(format!("Failed to get regions, retcode: {}", json.retcode));
-    }
-
-    return Ok(json.region_list);
 }
 
 #[derive(serde::Deserialize)]
@@ -170,7 +165,7 @@ pub struct RegionExt {
 #[derive(serde::Deserialize)]
 pub struct Gateway {
     pub ip: String,
-    pub port: i32
+    pub port: i32,
 }
 
 #[derive(serde::Deserialize)]
@@ -232,7 +227,7 @@ pub fn get_region(
         Ok(content) => content,
         Err(e) => return Err(format!("Failed to decrypt content: {}", e)),
     };
-    
+
     return match serde_json::from_str::<RegionInfo>(&content) {
         Ok(region_info) => Ok(region_info),
         Err(e) => Err(format!("Failed to parse RegionInfo: {}", e)),

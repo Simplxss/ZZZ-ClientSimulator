@@ -86,7 +86,7 @@ fn main() {
     println!("{}", sdk.save_token().expect("Save token failed"));
     let combo_token = sdk.get_combo_token().expect("Game login failed");
 
-    let regions = http::gate::get_regions(
+    let dispatch_info = http::gate::get_regions(
         GATE_NAME,
         VERSION,
         LANGUAGE,
@@ -95,7 +95,7 @@ fn main() {
         PLATFORM,
     )
     .expect("Failed to get regions");
-    for region in regions {
+    for region in dispatch_info.region_list {
         println!("{}: {}", region.title, region.retcode);
         if region.biz == BIZ {
             let region_info = http::gate::get_region(
@@ -117,4 +117,6 @@ fn main() {
             }
         }
     }
+
+    
 }
