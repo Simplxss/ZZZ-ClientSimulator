@@ -65,7 +65,7 @@ cI5DcsNKqdsx5DZX0gDuWFuIjzdwButrIYPNmRJ1G8ybDIF7oDW2eEpm5sMbL9zs
 CgGs52bFoYMtyi+xEQIDAQAB
 -----END PUBLIC KEY-----";
 
-const SIGN_KEY: &[u8] = b"";
+const SIGN_KEY: &[u8] = b"8844b676f3268c082a56021d9f47a206";
 
 pub fn decrypt_content(content: &str, rsa_ver: i32) -> Result<String, String> {
     let priv_key = match rsa_ver {

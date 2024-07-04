@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use rand::distributions::{Alphanumeric, DistString};
+use rand::Rng;
 use regex::Regex;
 use std::{thread::sleep, time::Duration};
 
@@ -15,9 +15,10 @@ struct Device {
     lifecycle_id: String,
 }
 
-pub struct AccountData {
-    pub uid: String,
-    pub token: String,
+#[derive(serde::Serialize, serde::Deserialize)]
+struct AccountData {
+    uid: String,
+    token: String,
 }
 
 pub struct Sdk {
@@ -27,9 +28,9 @@ pub struct Sdk {
     account: Option<AccountData>,
 
     // callback function
-    pub qrcode_callback: Option<fn(&str) -> ()>,
-    pub captcha_callback: Option<fn() -> String>,
-    pub geetest_callback: Option<fn(&str, &str) -> String>,
+    qrcode_callback: Option<fn(&str) -> ()>,
+    captcha_callback: Option<fn() -> String>,
+    geetest_callback: Option<fn(&str, &str) -> (String, String)>,
 }
 
 #[derive(serde::Deserialize)]
@@ -203,19 +204,29 @@ struct LoginGameResponse {
     fatigue_remind: Option<()>,
 }
 
+fn rand_hex_string<R: Rng + ?Sized>(rng: &mut R, len: usize) -> String {
+    const HEX_CHARS: [char; 16] = [
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
+    ];
+    let mut s = String::new();
+    for _ in 0..len {
+        s.push(HEX_CHARS[rng.gen_range(0..16)]);
+    }
+    return s;
+}
+
 impl Sdk {
-    pub(crate) fn new(
-        account: Option<AccountData>,
+    pub fn new(
         qrcode_callback: Option<fn(&str)>,
         captcha_callback: Option<fn() -> String>,
-        geetest_callback: Option<fn(&str, &str) -> String>,
+        geetest_callback: Option<fn(&str, &str) -> (String, String)>,
     ) -> Self {
         let mut rng = rand::thread_rng();
         let device = Device {
-            device_fp: Alphanumeric.sample_string(&mut rng, 13),
-            device_id: Alphanumeric.sample_string(&mut rng, 53),
+            device_fp: rand_hex_string(&mut rng, 13),
+            device_id: rand_hex_string(&mut rng, 53),
             device_model: "iMac".to_string(),
-            device_name: "Simlator".to_string(),
+            device_name: "Simulator".to_string(),
             lifecycle_id: uuid::Uuid::new_v4().to_string(),
         };
 
@@ -306,7 +317,7 @@ impl Sdk {
         Sdk {
             device,
             headers,
-            account,
+            account: Option::None,
             qrcode_callback,
             captcha_callback,
             geetest_callback,
@@ -378,7 +389,6 @@ impl Sdk {
 
     pub fn qr_login(&mut self) -> Result<(), String> {
         let qrcode_url = self.fetch_qrcode().expect("Failed to fetch qrcode");
-        // println!("{}", qrcode_url);
         (self.qrcode_callback.expect("qrcode callback is null"))(&qrcode_url);
 
         let re = Regex::new(r"&ticket=([^&]*)").unwrap();
@@ -392,7 +402,6 @@ impl Sdk {
                 "Init" => {}
                 "Scanned" => {}
                 "Confirmed" => {
-                    // println!("{}", result.payload.raw);
                     let raw = serde_json::from_str::<Raw>(&result.payload.raw).unwrap();
                     self.account = Option::Some(AccountData {
                         uid: raw.uid,
@@ -443,15 +452,17 @@ impl Sdk {
         }
 
         let data = json.data.unwrap();
+        let (mut challenge, mut seccode, mut validate) =
+            (String::new(), String::new(), String::new());
         match data.action.as_str() {
             "ACTION_NONE" => {}
             "ACTION_GEETEST" => {
                 let geetest = data.geetest.unwrap();
-                let captcha = (self.geetest_callback.expect("geetest callback is null"))(
-                    &geetest.challenge.as_str(),
-                    &geetest.gt.as_str(),
+                challenge = geetest.challenge;
+                (seccode, validate) = (self.geetest_callback.expect("geetest callback is null"))(
+                    challenge.as_str(),
+                    geetest.gt.as_str(),
                 );
-                // todo
             }
             _ => {
                 return Err(format!(
@@ -460,26 +471,29 @@ impl Sdk {
                 ));
             }
         }
-        return Ok(data.id);
+        return Ok(format!(
+            "id={};c={};s={};v={}",
+            data.id, challenge, seccode, validate
+        ));
     }
 
     pub fn password_login(&mut self, account: &str, password: &str) -> Result<(), String> {
         const ACTION_TYPE: &str = "login";
         const LOGIN_API_NAME: &str = "/shield/api/login";
-        let risky_id = match self.check_risky(
+        let risky = match self.check_risky(
             ACTION_TYPE,
             LOGIN_API_NAME,
             Option::Some(account),
             Option::None,
         ) {
-            Ok(risky_id) => risky_id,
+            Ok(risky) => risky,
             Err(e) => return Err(e),
         };
 
         let mut headers = self.headers.clone();
         headers.insert(
             "x-rpc-risky",
-            reqwest::header::HeaderValue::from_str(&risky_id).unwrap(),
+            reqwest::header::HeaderValue::from_str(&risky).unwrap(),
         );
 
         let data = PasswordLoginRequest {
@@ -523,20 +537,20 @@ impl Sdk {
     fn send_captcha(&self, area: &str, mobile: &str) -> Result<(), String> {
         const ACTION_TYPE: &str = "login";
         const SEND_CAPTCHA_API_NAME: &str = "/shield/api/loginCaptcha";
-        let risky_id = match self.check_risky(
+        let risky = match self.check_risky(
             ACTION_TYPE,
             SEND_CAPTCHA_API_NAME,
             Option::None,
             Option::Some(mobile),
         ) {
-            Ok(risky_id) => risky_id,
+            Ok(risky) => risky,
             Err(e) => return Err(e),
         };
 
         let mut headers = self.headers.clone();
         headers.insert(
             "x-rpc-risky",
-            reqwest::header::HeaderValue::from_str(&risky_id).unwrap(),
+            reqwest::header::HeaderValue::from_str(&risky).unwrap(),
         );
 
         let data = SendCaptchaRequest {
@@ -620,8 +634,28 @@ impl Sdk {
         return Ok(());
     }
 
-    // stoken_v2 or game_token
-    pub fn login_game(&self) -> Result<String, String> {
+    pub fn save_token(&self) -> Result<String, String> {
+        if self.account.is_none() {
+            return Err("Account is not logged in".to_string());
+        }
+        let account = self.account.as_ref().unwrap();
+        let data = AccountData {
+            uid: account.uid.clone(),
+            token: account.token.clone(),
+        };
+        return Ok(serde_json::to_string(&data).unwrap());
+    }
+
+    pub fn load_token(&mut self, data: &str) -> Result<(), String> {
+        let account = match serde_json::from_str::<AccountData>(data) {
+            Ok(account) => account,
+            Err(e) => return Err(format!("Failed to parse json: {}", e)),
+        };
+        self.account = Option::Some(account);
+        return Ok(());
+    }
+
+    pub fn get_combo_token(&self) -> Result<String, String> {
         if self.account.is_none() {
             return Err("Account is not logged in".to_string());
         }
@@ -629,7 +663,7 @@ impl Sdk {
         let auth_data = AuthData {
             uid: account.uid.clone(),
             guest: false,
-            token: account.token.clone(),
+            token: account.token.clone(), // stoken_v2 or game_token
         };
         let inr_data = serde_json::to_string(&auth_data).unwrap();
 

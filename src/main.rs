@@ -1,5 +1,3 @@
-use std::{thread::sleep, time::Duration};
-
 use qrcode::{render::unicode, QrCode};
 
 mod http;
@@ -16,30 +14,77 @@ const DISPATCH_SEED: &str = "195fdb867197c041";
 const RSA_VER: i32 = 3;
 
 fn main() {
-    // let mut sdk = http::sdk::Sdk::new(
-    //     Option::None,
-    //     Option::Some(|qrcode_url: &str| {
-    //         let qrcode = QrCode::new(qrcode_url.clone()).unwrap();
-    //         let image = qrcode
-    //             .render::<unicode::Dense1x2>()
-    //             .dark_color(unicode::Dense1x2::Light)
-    //             .light_color(unicode::Dense1x2::Dark)
-    //             .build();
-    //         println!("{}", image);
-    //     }),
-    //     Option::None,
-    //     Option::None,
-    // );
-    // sdk.qr_login().expect("QR login failed");
-    // // sdk.password_login("account", "password").expect("Password login failed");
-
-    let sdk = http::sdk::Sdk::new(
-        Option::Some(account),
-        Option::None,
-        Option::None,
-        Option::None,
+    let mut sdk = http::sdk::Sdk::new(
+        Option::Some(|qrcode_url: &str| {
+            let qrcode = QrCode::new(qrcode_url).unwrap();
+            let image = qrcode
+                .render::<unicode::Dense1x2>()
+                .dark_color(unicode::Dense1x2::Light)
+                .light_color(unicode::Dense1x2::Dark)
+                .build();
+            println!("{}", image);
+        }),
+        Option::Some(|| {
+            let mut captcha = String::new();
+            std::io::stdin()
+                .read_line(&mut captcha)
+                .expect("error: unable to read user input");
+            return captcha.trim().to_string();
+        }),
+        Option::Some(|challenge: &str, gt: &str| {
+            println!("challenge: {}", challenge);
+            println!("gt: {}", gt);
+            let mut validate = String::new();
+            std::io::stdin()
+                .read_line(&mut validate)
+                .expect("error: unable to read user input");
+            validate = validate.trim().to_string();
+            return (format!("{}|jordan", validate), validate);
+        }),
     );
-    // sdk.login_game().expect("Game login failed");
+
+    let mut login_type: String = String::new();
+    std::io::stdin()
+        .read_line(&mut login_type)
+        .expect("error: unable to read user input");
+    let login_type: i32 = login_type.trim().parse().expect("Invalid login type");
+    match login_type {
+        0 => {
+            let mut token;
+            std::io::stdin()
+                .read_line(&mut token)
+                .expect("error: unable to read user input");
+            sdk.load_token(token.trim()).expect("Load token failed");
+        }
+        1 => {
+            sdk.qr_login().expect("QR login failed");
+        }
+        2 => {
+            let (mut account, mut password) = (String::new(), String::new());
+            std::io::stdin()
+                .read_line(&mut account)
+                .expect("error: unable to read user input");
+            std::io::stdin()
+                .read_line(&mut password)
+                .expect("error: unable to read user input");
+            sdk.password_login(account.trim(), password.trim())
+                .expect("Password login failed");
+        }
+        3 => {
+            let (mut area_code, mut phone) = (String::new(), String::new());
+            std::io::stdin()
+                .read_line(&mut area_code)
+                .expect("error: unable to read user input");
+            std::io::stdin()
+                .read_line(&mut phone)
+                .expect("error: unable to read user input");
+            sdk.mobile_login(area_code.trim(), phone.trim())
+                .expect("Captcha login failed");
+        }
+        _ => panic!("Invalid login type"),
+    }
+    println!("{}", sdk.save_token().expect("Save token failed"));
+    let combo_token = sdk.get_combo_token().expect("Game login failed");
 
     let regions = http::gate::get_regions(
         GATE_NAME,
