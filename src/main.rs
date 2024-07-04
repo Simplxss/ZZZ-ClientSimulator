@@ -32,7 +32,6 @@ fn main() {
     // );
     // sdk.qr_login().expect("QR login failed");
     // // sdk.password_login("account", "password").expect("Password login failed");
-    
 
     let sdk = http::sdk::Sdk::new(
         Option::Some(account),
@@ -40,7 +39,7 @@ fn main() {
         Option::None,
         Option::None,
     );
-    sdk.login_game().expect("Game login failed");
+    // sdk.login_game().expect("Game login failed");
 
     let regions = http::gate::get_regions(
         GATE_NAME,
@@ -54,24 +53,22 @@ fn main() {
     for region in regions {
         println!("{}: {}", region.title, region.retcode);
         if region.biz == BIZ {
-            loop {
-                let region_info = http::gate::get_region(
-                    &region.dispatch_url,
-                    VERSION,
-                    RSA_VER,
-                    LANGUAGE,
-                    PLATFORM,
-                    DISPATCH_SEED,
-                    CHANNEL_ID,
-                    SUB_CHANNEL_ID,
-                )
-                .expect("Failed to get region");
+            let region_info = http::gate::get_region(
+                &region.dispatch_url,
+                VERSION,
+                RSA_VER,
+                LANGUAGE,
+                PLATFORM,
+                DISPATCH_SEED,
+                CHANNEL_ID,
+                SUB_CHANNEL_ID,
+            )
+            .expect("Failed to get region");
 
-                println!("{}: {}", region_info.title, region_info.retcode);
-                if region_info.retcode == 0 {
-                    break;
-                }
-                sleep(Duration::from_secs(1));
+            println!("{}: {}", region_info.title, region_info.retcode);
+            if region_info.retcode == 0 {
+                println!("{}: {}", region_info.gateway.ip, region_info.gateway.port);
+                break;
             }
         }
     }

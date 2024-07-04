@@ -146,6 +146,8 @@ pub struct FuncSwitch {
     pub enable_operation_log: i32,
     #[serde(rename = "enableiOSShaderWarmupOnStartup")]
     pub enable_ios_shader_warmup_on_startup: i32,
+    #[serde(rename = "isKcp")]
+    pub is_kcp: i32,
     pub open_hotfix_popups: i32,
 }
 
@@ -166,9 +168,18 @@ pub struct RegionExt {
 }
 
 #[derive(serde::Deserialize)]
+pub struct Gateway {
+    pub ip: String,
+    pub port: i32
+}
+
+#[derive(serde::Deserialize)]
 pub struct RegionInfo {
     pub cdn_conf_ext: Option<CdnConfExt>,
-    pub msg: String,
+    pub client_secret_key: String,
+    pub env: i32,
+    pub gateway: Gateway,
+    pub msg: Option<String>,
     pub region_ext: Option<RegionExt>,
     pub region_name: String,
     pub retcode: i32,
@@ -199,7 +210,7 @@ pub fn get_region(
     params.insert("rsa_ver", rsa_ver.to_string());
     params.insert("language", language.to_string());
     params.insert("platform", platform.to_string());
-    params.insert("dispatch_seed", dispatch_seed.to_string());
+    params.insert("seed", dispatch_seed.to_string());
     params.insert("channel_id", channel_id.to_string());
     params.insert("sub_channel_id", sub_channel_id.to_string());
 
@@ -217,15 +228,13 @@ pub fn get_region(
         Err(e) => return Err(format!("Failed to parse QueryGateway: {}", e)),
     };
 
-    let content = match serde_json::from_str::<RegionInfo>(
-        match super::util::decrypt_content(&json.content, rsa_ver) {
-            Ok(content) => content,
-            Err(e) => return Err(format!("Failed to decrypt content: {}", e)),
-        }.as_str()
-    ) {
+    let content = match super::util::decrypt_content(&json.content, rsa_ver) {
         Ok(content) => content,
-        Err(e) => return Err(format!("Failed to parse RegionInfo: {}", e)),
+        Err(e) => return Err(format!("Failed to decrypt content: {}", e)),
     };
-
-    return Ok(content);
+    
+    return match serde_json::from_str::<RegionInfo>(&content) {
+        Ok(region_info) => Ok(region_info),
+        Err(e) => Err(format!("Failed to parse RegionInfo: {}", e)),
+    };
 }
