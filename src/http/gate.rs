@@ -20,7 +20,7 @@ pub struct DispatchInfo {
     pub retcode: i32,
 }
 
-pub fn get_regions(
+pub async fn get_regions(
     dispatch_name: &str,
     version: &str,
     language: i32,
@@ -46,12 +46,12 @@ pub fn get_regions(
         Ok(url) => url,
         Err(e) => return Err(format!("Failed to parse url: {}", e)),
     };
-    let res = match reqwest::blocking::get(url) {
+    let res = match reqwest::get(url).await {
         Ok(res) => res,
         Err(e) => return Err(format!("Failed to send request: {}", e)),
     };
 
-    return match res.json::<DispatchInfo>() {
+    return match res.json::<DispatchInfo>().await {
         Ok(json) => Ok(json),
         Err(e) => Err(format!("Failed to parse json: {}", e)),
     };
@@ -165,7 +165,7 @@ pub struct RegionExt {
 #[derive(serde::Deserialize)]
 pub struct Gateway {
     pub ip: String,
-    pub port: i32,
+    pub port: u16,
 }
 
 #[derive(serde::Deserialize)]
@@ -190,7 +190,7 @@ struct QueryGateway {
     sign: String,
 }
 
-pub fn get_region(
+pub async fn get_region(
     dispatch_url: &str,
     version: &str,
     rsa_ver: i32,
@@ -213,12 +213,12 @@ pub fn get_region(
         Ok(url) => url,
         Err(e) => return Err(format!("Failed to parse url: {}", e)),
     };
-    let res = match reqwest::blocking::get(url) {
+    let res = match reqwest::get(url).await {
         Ok(res) => res,
         Err(e) => return Err(format!("Failed to send request: {}", e)),
     };
 
-    let json = match res.json::<QueryGateway>() {
+    let json = match res.json::<QueryGateway>().await {
         Ok(json) => json,
         Err(e) => return Err(format!("Failed to parse QueryGateway: {}", e)),
     };

@@ -19,6 +19,9 @@ hex = "0.4.3"
 base64 = "0.13"
 regex = "1.10.5"
 itertools = "0.13.0"
+tokio_kcp = { git = "https://github.com/Simplxss/tokio_kcp.git" }
+tokio = { version = "1.38.0", features = ["rt-multi-thread"] }
+hyper = "1.4.1"
 
 [[bin]]
 name = "simulator"

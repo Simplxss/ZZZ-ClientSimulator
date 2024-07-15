@@ -116,6 +116,7 @@ pub fn sign_data<T>(data: &T) -> String
 where
     T: serde::ser::Serialize,
 {
+    // data.Serialize();
     let t = serde_json::to_value(&data).unwrap();
     let t1: HashMap<String, Value> = serde_json::from_value(t).unwrap();
     let t2: HashMap<String, String> = t1

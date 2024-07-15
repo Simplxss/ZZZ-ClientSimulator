@@ -1,4 +1,7 @@
+use std::{net::{IpAddr, Ipv4Addr, SocketAddr}, thread::sleep, time::Duration};
+
 use qrcode::{render::unicode, QrCode};
+use tokio_kcp::{KcpConfig, KcpStream};
 
 mod http;
 
@@ -13,7 +16,8 @@ const BIZ: &str = "nap_cn";
 const DISPATCH_SEED: &str = "195fdb867197c041";
 const RSA_VER: i32 = 3;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let mut sdk = http::sdk::Sdk::new(
         Option::Some(|qrcode_url: &str| {
             let qrcode = QrCode::new(qrcode_url).unwrap();
@@ -43,48 +47,48 @@ fn main() {
         }),
     );
 
-    let mut login_type: String = String::new();
-    std::io::stdin()
-        .read_line(&mut login_type)
-        .expect("error: unable to read user input");
-    let login_type: i32 = login_type.trim().parse().expect("Invalid login type");
-    match login_type {
-        0 => {
-            let mut token;
-            std::io::stdin()
-                .read_line(&mut token)
-                .expect("error: unable to read user input");
-            sdk.load_token(token.trim()).expect("Load token failed");
-        }
-        1 => {
-            sdk.qr_login().expect("QR login failed");
-        }
-        2 => {
-            let (mut account, mut password) = (String::new(), String::new());
-            std::io::stdin()
-                .read_line(&mut account)
-                .expect("error: unable to read user input");
-            std::io::stdin()
-                .read_line(&mut password)
-                .expect("error: unable to read user input");
-            sdk.password_login(account.trim(), password.trim())
-                .expect("Password login failed");
-        }
-        3 => {
-            let (mut area_code, mut phone) = (String::new(), String::new());
-            std::io::stdin()
-                .read_line(&mut area_code)
-                .expect("error: unable to read user input");
-            std::io::stdin()
-                .read_line(&mut phone)
-                .expect("error: unable to read user input");
-            sdk.mobile_login(area_code.trim(), phone.trim())
-                .expect("Captcha login failed");
-        }
-        _ => panic!("Invalid login type"),
-    }
-    println!("{}", sdk.save_token().expect("Save token failed"));
-    let combo_token = sdk.get_combo_token().expect("Game login failed");
+    // let mut login_type: String = String::new();
+    // std::io::stdin()
+    //     .read_line(&mut login_type)
+    //     .expect("error: unable to read user input");
+    // let login_type: i32 = login_type.trim().parse().expect("Invalid login type");
+    // match login_type {
+    //     0 => {
+    //         let mut token = String::new();
+    //         std::io::stdin()
+    //             .read_line(&mut token)
+    //             .expect("error: unable to read user input");
+    //         sdk.load_token(token.trim()).expect("Load token failed");
+    //     }
+    //     1 => {
+    //         sdk.qr_login().expect("QR login failed");
+    //     }
+    //     2 => {
+    //         let (mut account, mut password) = (String::new(), String::new());
+    //         std::io::stdin()
+    //             .read_line(&mut account)
+    //             .expect("error: unable to read user input");
+    //         std::io::stdin()
+    //             .read_line(&mut password)
+    //             .expect("error: unable to read user input");
+    //         sdk.password_login(account.trim(), password.trim())
+    //             .expect("Password login failed");
+    //     }
+    //     3 => {
+    //         let (mut area_code, mut phone) = (String::new(), String::new());
+    //         std::io::stdin()
+    //             .read_line(&mut area_code)
+    //             .expect("error: unable to read user input");
+    //         std::io::stdin()
+    //             .read_line(&mut phone)
+    //             .expect("error: unable to read user input");
+    //         sdk.mobile_login(area_code.trim(), phone.trim())
+    //             .expect("Captcha login failed");
+    //     }
+    //     _ => panic!("Invalid login type"),
+    // }
+    // println!("{}", sdk.save_token().expect("Save token failed"));
+    // let combo_token = sdk.get_combo_token().expect("Game login failed");
 
     let dispatch_info = http::gate::get_regions(
         GATE_NAME,
@@ -93,7 +97,7 @@ fn main() {
         CHANNEL_ID,
         SUB_CHANNEL_ID,
         PLATFORM,
-    )
+    ).await
     .expect("Failed to get regions");
     for region in dispatch_info.region_list {
         println!("{}: {}", region.title, region.retcode);
@@ -107,16 +111,30 @@ fn main() {
                 DISPATCH_SEED,
                 CHANNEL_ID,
                 SUB_CHANNEL_ID,
-            )
+            ).await
             .expect("Failed to get region");
 
             println!("{}: {}", region_info.title, region_info.retcode);
             if region_info.retcode == 0 {
-                println!("{}: {}", region_info.gateway.ip, region_info.gateway.port);
+                let (ip, port) = (region_info.gateway.ip, region_info.gateway.port);
+                println!("{}: {}", ip, port);
+
+                tokio::spawn(async move {
+                    let config = KcpConfig::default();
+                    let mut stream = KcpStream::connect(
+                        &config,
+                        SocketAddr::new(IpAddr::V4(ip.parse::<Ipv4Addr>().unwrap()), port),
+                    )
+                    .await
+                    .unwrap();
+
+                    // stream.send(combo_token.as_bytes()).await.unwrap();
+                });
+
                 break;
             }
         }
     }
 
-    
+    sleep(Duration::from_secs(60));
 }
