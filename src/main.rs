@@ -1,8 +1,14 @@
-use std::{net::{IpAddr, Ipv4Addr, SocketAddr}, thread::sleep, time::Duration};
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    thread::sleep,
+    time::Duration,
+};
 
+use game::session;
 use qrcode::{render::unicode, QrCode};
 use tokio_kcp::{KcpConfig, KcpStream};
 
+mod game;
 mod http;
 
 const GATE_NAME: &str = "cn";
@@ -97,7 +103,8 @@ async fn main() {
         CHANNEL_ID,
         SUB_CHANNEL_ID,
         PLATFORM,
-    ).await
+    )
+    .await
     .expect("Failed to get regions");
     for region in dispatch_info.region_list {
         println!("{}: {}", region.title, region.retcode);
@@ -111,22 +118,23 @@ async fn main() {
                 DISPATCH_SEED,
                 CHANNEL_ID,
                 SUB_CHANNEL_ID,
-            ).await
+            )
+            .await
             .expect("Failed to get region");
 
             println!("{}: {}", region_info.title, region_info.retcode);
             if region_info.retcode == 0 {
-                let (ip, port) = (region_info.gateway.ip, region_info.gateway.port);
-                println!("{}: {}", ip, port);
+                let gateway = region_info.gateway.unwrap();
+                println!("{}: {}", gateway.ip, gateway.port);
+                // println!("{}", region_info.client_secret_key.unwrap());
 
                 tokio::spawn(async move {
-                    let config = KcpConfig::default();
-                    let mut stream = KcpStream::connect(
-                        &config,
-                        SocketAddr::new(IpAddr::V4(ip.parse::<Ipv4Addr>().unwrap()), port),
-                    )
-                    .await
-                    .unwrap();
+                    let addr = SocketAddr::new(
+                        IpAddr::V4(gateway.ip.parse::<Ipv4Addr>().unwrap()),
+                        gateway.port,
+                    );
+
+                    let session = session::Session::new(addr);
 
                     // stream.send(combo_token.as_bytes()).await.unwrap();
                 });

@@ -88,6 +88,12 @@ pub struct CdnConfExt {
 }
 
 #[derive(serde::Deserialize)]
+pub struct Gateway {
+    pub ip: String,
+    pub port: u16,
+}
+
+#[derive(serde::Deserialize)]
 pub struct FuncSwitch {
     #[serde(rename = "Close_Medium_Package_Download")]
     pub close_medium_package_download: i32,
@@ -163,17 +169,11 @@ pub struct RegionExt {
 }
 
 #[derive(serde::Deserialize)]
-pub struct Gateway {
-    pub ip: String,
-    pub port: u16,
-}
-
-#[derive(serde::Deserialize)]
 pub struct RegionInfo {
     pub cdn_conf_ext: Option<CdnConfExt>,
-    pub client_secret_key: String,
+    pub client_secret_key: Option<String>,
     pub env: i32,
-    pub gateway: Gateway,
+    pub gateway: Option<Gateway>,
     pub msg: Option<String>,
     pub region_ext: Option<RegionExt>,
     pub region_name: String,

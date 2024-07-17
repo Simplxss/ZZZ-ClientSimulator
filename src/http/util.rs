@@ -65,6 +65,22 @@ cI5DcsNKqdsx5DZX0gDuWFuIjzdwButrIYPNmRJ1G8ybDIF7oDW2eEpm5sMbL9zs
 CgGs52bFoYMtyi+xEQIDAQAB
 -----END PUBLIC KEY-----";
 
+const CERT = "-----BEGIN CERTIFICATE-----
+MIICqDCCAZACCQD1Zz1z1z1z1zANBgkqhkiG9w0BAQsFADCBiDELMAkGA1UEBhMC
+Q04xETAPBgNVBAgMCEJlaWppbmcxETAPBgNVBAcMCEJlaWppbmcxETAPBgNVBAoM
+CEJlaWppbmcxETAPBgNVBAsMCEJlaWppbmcxETAPBgNVBAMMCEJlaWppbmcxHzAd
+BgkqhkiG9w0BCQEWEGJlaWppbmdAYmVpamluZy5jb20wHhcNMTkwNjEwMTY0MzQw
+WhcNMTkwNzEwMTY0MzQwWjCBiDELMAkGA1UEBhMCQ04xETAPBgNVBAgMCEJlaWpp
+bmcxETAPBgNVBAcMCEJlaWppbmcxETAPBgNVBAoMCEJlaWppbmcxETAPBgNVBAsM
+CEJlaWppbmcxETAPBgNVBAMMCEJlaWppbmcxHzAdBgkqhkiG9w0BCQEWEGJlaWpp
+bmdAYmVpamluZy5jb20wgZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJAoGBAMO96R08
+wc3cBiGb+WSU/mCa+3COQ3LDSQLqnZzHkNlfSAO5YW4iPN3AG62shg82ZEnUbzJs
+MgXugNbZ4SmmbDGy/c7PREVwnb6q5+dahC26o9F8bTEyKWhocVIjnQ98+lMVX1e3
++GbJXCiSg5cWUASAKf5AKAaznZsWhgy3KL7ERAgMBAAEwDQYJKoZIhvcNAQELBQAD
+gYEAg5Z
+-----END CERTIFICATE-----";
+
+
 const SIGN_KEY: &[u8] = b"8844b676f3268c082a56021d9f47a206";
 
 pub fn decrypt_content(content: &str, rsa_ver: i32) -> Result<String, String> {
@@ -147,4 +163,40 @@ where
     mac.update(s.as_bytes());
     let result = mac.finalize();
     return hex::encode(result.into_bytes());
+}
+
+
+pub fn cert_encrypt(content: &str) -> Result<String, String> {
+    let pub_key =  RsaPublicKey::from_public_key_pem(CERT).unwrap();
+
+    let encrypted = match pub_key.encrypt(
+        &mut rand::thread_rng(),
+        Pkcs1v15Encrypt,
+        content.as_bytes(),
+    ) {
+        Ok(encrypted) => encrypted,
+        Err(e) => return Err(format!("failed to encrypt: {}", e)),
+    };
+
+    return Ok(base64::encode(encrypted));
+}
+
+pub fn cert_verify_sign(content: &str, sign: &str) -> bool {
+    let pub_key = match RsaPublicKey::from_public_key_pem(PASSWORD_KEY) {
+        Ok(key) => key,
+        Err(_) => return false,
+    };
+
+    let raw = match base64::decode(content) {
+        Ok(raw) => raw,
+        Err(_) => return false,
+    };
+
+    type HmacSha256 = Hmac<Sha256>;
+    let mut mac = HmacSha256::new_from_slice(SIGN_KEY).unwrap();
+    mac.update(&raw);
+    let result = mac.finalize();
+    let sign2 = hex::encode(result.into_bytes());
+
+    return sign == sign2;
 }
