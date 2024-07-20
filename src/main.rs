@@ -6,21 +6,21 @@ use std::{
 
 use game::session;
 use qrcode::{render::unicode, QrCode};
-use tokio_kcp::{KcpConfig, KcpStream};
 
+mod common;
 mod game;
 mod http;
 
 const GATE_NAME: &str = "cn";
 const VERSION: &str = "CNPRODWin1.0.0";
-const LANGUAGE: i32 = 2;
-const CHANNEL_ID: i32 = 1;
-const SUB_CHANNEL_ID: i32 = 1;
-const PLATFORM: i32 = 3;
+const LANGUAGE: u32 = 2;
+const CHANNEL_ID: u32 = 1;
+const SUB_CHANNEL_ID: u32 = 1;
+const PLATFORM: u32 = 3;
 
 const BIZ: &str = "nap_cn";
 const DISPATCH_SEED: &str = "195fdb867197c041";
-const RSA_VER: i32 = 3;
+const RSA_VER: u32 = 3;
 
 #[tokio::main]
 async fn main() {

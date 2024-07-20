@@ -498,7 +498,7 @@ impl Sdk {
 
         let data = PasswordLoginRequest {
             account: account.to_string(),
-            password: super::util::password_encrypt(password).unwrap(),
+            password: crate::common::rsa::password_encrypt(password).unwrap(),
             is_crypto: true,
         };
 
@@ -675,7 +675,7 @@ impl Sdk {
             sign: Option::None,
         };
 
-        data.sign = Option::Some(super::util::sign_data(&data));
+        data.sign = Option::Some(crate::common::hmac::sign_data(&data));
 
         let res = match reqwest::blocking::Client::new()
             .post(format!("{}{}", SDK_DOMAIN, "nap_cn/combo/granter/login/v2/login").as_str())
