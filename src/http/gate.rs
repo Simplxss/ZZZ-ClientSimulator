@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
+use crate::common::rsa;
 use std::collections::HashMap;
-
 
 #[derive(serde::Deserialize)]
 pub struct RegionSimpleInfo {
@@ -224,12 +224,12 @@ pub async fn get_region(
         Err(e) => return Err(format!("Failed to parse QueryGateway: {}", e)),
     };
 
-    let content = match crate::common::rsa::decrypt_content(&json.content, rsa_ver) {
+    let content = match rsa::decrypt_content(&json.content, rsa_ver) {
         Ok(content) => content,
         Err(e) => return Err(format!("Failed to decrypt content: {}", e)),
     };
 
-    match crate::common::rsa::rsa_verify_sign(&content, &json.sign, rsa_ver) {
+    match rsa::rsa_verify_sign(&content, &json.sign, rsa_ver) {
         Ok(true) => (),
         Ok(false) => return Err("Failed to verify sign".to_string()),
         Err(e) => return Err(format!("Failed to verify sign: {}", e)),

@@ -126,7 +126,8 @@ async fn main() {
             if region_info.retcode == 0 {
                 let gateway = region_info.gateway.unwrap();
                 println!("{}: {}", gateway.ip, gateway.port);
-                // println!("{}", region_info.client_secret_key.unwrap());
+                let client_secret_key = region_info.client_secret_key.unwrap();
+                println!("{}", client_secret_key);
 
                 tokio::spawn(async move {
                     let addr = SocketAddr::new(
@@ -134,7 +135,7 @@ async fn main() {
                         gateway.port,
                     );
 
-                    let session = session::Session::new(addr);
+                    let session = session::Session::new(addr, &client_secret_key).await;
 
                     // stream.send(combo_token.as_bytes()).await.unwrap();
                 });
