@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use tokio_kcp::{KcpConfig, KcpStream};
 
-use crate::common::{ec2b::Ec2b, mt64, xor};
+use crate::common::{ec2b::{DecodeError, Ec2b}, mt64, xor};
 
 use super::packet::Packet;
 
@@ -23,11 +23,17 @@ pub struct Session {
 }
 
 impl Session {
-    pub async fn new(addr: SocketAddr, client_secret_key: &str) -> Self {
-        let ec2b =
-            Ec2b::read(&base64::decode(client_secret_key).expect("Failed to decode secret key"))
-                .expect("Failed to read Ec2b data");
-        Self {
+    pub async fn new(addr: SocketAddr, client_secret_key: &str) -> Result<Self, String> {
+        let dec_client_secret_key = match base64::decode(client_secret_key) {
+            Ok(v) => v,
+            Err(e) => panic!("Failed to decode client secret key: {}", e),
+        };
+        let ec2b = match Ec2b::read(&dec_client_secret_key) {
+            Ok(v) => v,
+            Err(e) => return Err(format!("Failed to decode Ec2b: {}", e))
+        };
+        
+        Ok(Self {
             kcp: KcpStream::connect(&KcpConfig::default(), addr)
                 .await
                 .unwrap(),
@@ -35,7 +41,7 @@ impl Session {
             session_key: None,
 
             player: None,
-        }
+        })
     }
 
     pub async fn send(&mut self, mut packet: Packet, key_type: KeyType) -> Result<(), String> {

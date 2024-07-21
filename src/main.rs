@@ -135,7 +135,10 @@ async fn main() {
                         gateway.port,
                     );
 
-                    let session = session::Session::new(addr, &client_secret_key).await;
+                    let session = match session::Session::new(addr, &client_secret_key).await {
+                        Ok(v) => v,
+                        Err(e) => panic!("Failed to create session: {}", e),
+                    };
 
                     // stream.send(combo_token.as_bytes()).await.unwrap();
                 });
