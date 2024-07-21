@@ -324,23 +324,24 @@ impl Sdk {
         }
     }
 
-    fn fetch_qrcode(&self) -> Result<String, String> {
+    async fn fetch_qrcode(&self) -> Result<String, String> {
         let data = FetchQrcodeRequest {
             app_id: "12".to_string(),
             device: self.device.device_id.clone(),
         };
 
-        let res = match reqwest::blocking::Client::new()
+        let res = match reqwest::Client::new()
             .post(format!("{}{}", SDK_DOMAIN, "nap_cn/combo/panda/qrcode/fetch").as_str())
             .headers(self.headers.clone())
             .json(&data)
             .send()
+            .await
         {
             Ok(res) => res,
             Err(e) => return Err(format!("Failed to send request: {}", e)),
         };
 
-        let json = match res.json::<Response<FetchQrcodeResponse>>() {
+        let json = match res.json::<Response<FetchQrcodeResponse>>().await {
             Ok(json) => json,
             Err(e) => return Err(format!("Failed to parse json: {}", e)),
         };
@@ -355,24 +356,25 @@ impl Sdk {
         return Ok(json.data.unwrap().url);
     }
 
-    fn query_qrcode_status(&self, ticket: &str) -> Result<QueryQrcodeStatusResponse, String> {
+    async fn query_qrcode_status(&self, ticket: &str) -> Result<QueryQrcodeStatusResponse, String> {
         let data = QueryQrcodeStatusRequest {
             app_id: "12".to_string(),
             device: self.device.device_id.clone(),
             ticket: ticket.to_string(),
         };
 
-        let res = match reqwest::blocking::Client::new()
+        let res = match reqwest::Client::new()
             .post(format!("{}{}", SDK_DOMAIN, "nap_cn/combo/panda/qrcode/query").as_str())
             .headers(self.headers.clone())
             .json(&data)
             .send()
+            .await
         {
             Ok(res) => res,
             Err(e) => return Err(format!("Failed to send request: {}", e)),
         };
 
-        let json = match res.json::<Response<QueryQrcodeStatusResponse>>() {
+        let json = match res.json::<Response<QueryQrcodeStatusResponse>>().await {
             Ok(json) => json,
             Err(e) => return Err(format!("Failed to parse json: {}", e)),
         };
@@ -387,8 +389,8 @@ impl Sdk {
         return Ok(json.data.unwrap());
     }
 
-    pub fn qr_login(&mut self) -> Result<(), String> {
-        let qrcode_url = self.fetch_qrcode().expect("Failed to fetch qrcode");
+    pub async fn qr_login(&mut self) -> Result<(), String> {
+        let qrcode_url = self.fetch_qrcode().await.expect("Failed to fetch qrcode");
         (self.qrcode_callback.expect("qrcode callback is null"))(&qrcode_url);
 
         let re = Regex::new(r"&ticket=([^&]*)").unwrap();
@@ -397,6 +399,7 @@ impl Sdk {
         loop {
             let result = self
                 .query_qrcode_status(ticket)
+                .await
                 .expect("Failed to check qrcode status");
             match result.stat.as_str() {
                 "Init" => {}
@@ -415,7 +418,7 @@ impl Sdk {
         }
     }
 
-    fn check_risky(
+    async fn check_risky(
         &self,
         action_type: &str,
         api_name: &str,
@@ -429,17 +432,18 @@ impl Sdk {
             mobile: mobile.and_then(|s| Option::Some(s.to_string())),
         };
 
-        let res = match reqwest::blocking::Client::new()
+        let res = match reqwest::Client::new()
             .post(format!("{}{}", GAME_API_DOMAIN, "account/risky/api/check").as_str())
             .headers(self.headers.clone())
             .json(&data)
             .send()
+            .await
         {
             Ok(res) => res,
             Err(e) => return Err(format!("Failed to send request: {}", e)),
         };
 
-        let json = match res.json::<Response<CheckRiskyResponse>>() {
+        let json = match res.json::<Response<CheckRiskyResponse>>().await {
             Ok(json) => json,
             Err(e) => return Err(format!("Failed to parse json: {}", e)),
         };
@@ -477,15 +481,18 @@ impl Sdk {
         ));
     }
 
-    pub fn password_login(&mut self, account: &str, password: &str) -> Result<(), String> {
+    pub async fn password_login(&mut self, account: &str, password: &str) -> Result<(), String> {
         const ACTION_TYPE: &str = "login";
         const LOGIN_API_NAME: &str = "/shield/api/login";
-        let risky = match self.check_risky(
-            ACTION_TYPE,
-            LOGIN_API_NAME,
-            Option::Some(account),
-            Option::None,
-        ) {
+        let risky = match self
+            .check_risky(
+                ACTION_TYPE,
+                LOGIN_API_NAME,
+                Option::Some(account),
+                Option::None,
+            )
+            .await
+        {
             Ok(risky) => risky,
             Err(e) => return Err(e),
         };
@@ -502,17 +509,18 @@ impl Sdk {
             is_crypto: true,
         };
 
-        let res = match reqwest::blocking::Client::new()
+        let res = match reqwest::Client::new()
             .post(format!("{}{}{}", SDK_DOMAIN, "nap_cn/mdk", LOGIN_API_NAME).as_str())
             .headers(headers)
             .json(&data)
             .send()
+            .await
         {
             Ok(res) => res,
             Err(e) => return Err(format!("Failed to send request: {}", e)),
         };
 
-        let json = match res.json::<Response<PasswordLoginResponse>>() {
+        let json = match res.json::<Response<PasswordLoginResponse>>().await {
             Ok(json) => json,
             Err(e) => return Err(format!("Failed to parse json: {}", e)),
         };
@@ -534,15 +542,18 @@ impl Sdk {
         return Ok(());
     }
 
-    fn send_captcha(&self, area: &str, mobile: &str) -> Result<(), String> {
+    async fn send_captcha(&self, area: &str, mobile: &str) -> Result<(), String> {
         const ACTION_TYPE: &str = "login";
         const SEND_CAPTCHA_API_NAME: &str = "/shield/api/loginCaptcha";
-        let risky = match self.check_risky(
-            ACTION_TYPE,
-            SEND_CAPTCHA_API_NAME,
-            Option::None,
-            Option::Some(mobile),
-        ) {
+        let risky = match self
+            .check_risky(
+                ACTION_TYPE,
+                SEND_CAPTCHA_API_NAME,
+                Option::None,
+                Option::Some(mobile),
+            )
+            .await
+        {
             Ok(risky) => risky,
             Err(e) => return Err(e),
         };
@@ -558,17 +569,18 @@ impl Sdk {
             area: area.to_string(),
         };
 
-        let res = match reqwest::blocking::Client::new()
+        let res = match reqwest::Client::new()
             .post(format!("{}{}{}", SDK_DOMAIN, "nap_cn/mdk", SEND_CAPTCHA_API_NAME).as_str())
             .headers(headers)
             .json(&data)
             .send()
+            .await
         {
             Ok(res) => res,
             Err(e) => return Err(format!("Failed to send request: {}", e)),
         };
 
-        let json = match res.json::<Response<SendCaptchaResponse>>() {
+        let json = match res.json::<Response<SendCaptchaResponse>>().await {
             Ok(json) => json,
             Err(e) => return Err(format!("Failed to parse json: {}", e)),
         };
@@ -583,7 +595,7 @@ impl Sdk {
         return Ok(());
     }
 
-    fn submit_captcha(
+    async fn submit_captcha(
         &self,
         area: &str,
         mobile: &str,
@@ -596,17 +608,18 @@ impl Sdk {
             area: area.to_string(),
         };
 
-        let res = match reqwest::blocking::Client::new()
+        let res = match reqwest::Client::new()
             .post(format!("{}{}", SDK_DOMAIN, "nap_cn/mdk/shield/api/loginCaptcha").as_str())
             .headers(self.headers.clone())
             .json(&data)
             .send()
+            .await
         {
             Ok(res) => res,
             Err(e) => return Err(format!("Failed to send request: {}", e)),
         };
 
-        let json = match res.json::<Response<SubmitCaptchaResponse>>() {
+        let json = match res.json::<Response<SubmitCaptchaResponse>>().await {
             Ok(json) => json,
             Err(e) => return Err(format!("Failed to parse json: {}", e)),
         };
@@ -620,12 +633,12 @@ impl Sdk {
         return Ok(json.data.unwrap());
     }
 
-    pub fn mobile_login(&mut self, area: &str, mobile: &str) -> Result<(), String> {
-        self.send_captcha(area, mobile)?;
+    pub async fn mobile_login(&mut self, area: &str, mobile: &str) -> Result<(), String> {
+        self.send_captcha(area, mobile).await?;
 
         let captcha = (self.captcha_callback.expect("captcha callback is null"))();
 
-        let d = self.submit_captcha(area, mobile, &captcha)?;
+        let d = self.submit_captcha(area, mobile, &captcha).await?;
         self.account = Option::Some(AccountData {
             uid: d.account.uid,
             token: d.account.token,
@@ -655,7 +668,7 @@ impl Sdk {
         return Ok(());
     }
 
-    pub fn get_combo_token(&self) -> Result<String, String> {
+    pub async fn login_combo(&self) -> Result<(String, String), String> {
         if self.account.is_none() {
             return Err("Account is not logged in".to_string());
         }
@@ -677,17 +690,18 @@ impl Sdk {
 
         data.sign = Option::Some(crate::common::hmac::sign_data(&data));
 
-        let res = match reqwest::blocking::Client::new()
+        let res = match reqwest::Client::new()
             .post(format!("{}{}", SDK_DOMAIN, "nap_cn/combo/granter/login/v2/login").as_str())
             .headers(self.headers.clone())
             .json(&data)
             .send()
+            .await
         {
             Ok(res) => res,
             Err(e) => return Err(format!("Failed to send request: {}", e)),
         };
 
-        let json = match res.json::<Response<LoginGameResponse>>() {
+        let json = match res.json::<Response<LoginGameResponse>>().await {
             Ok(json) => json,
             Err(e) => return Err(format!("Failed to parse json: {}", e)),
         };
@@ -699,6 +713,8 @@ impl Sdk {
             ));
         }
 
-        return Ok(json.data.unwrap().combo_token);
+        let data = json.data.unwrap();
+
+        return Ok((data.open_id, data.combo_token));
     }
 }

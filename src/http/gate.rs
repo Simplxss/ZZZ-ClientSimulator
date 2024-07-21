@@ -224,15 +224,20 @@ pub async fn get_region(
         Err(e) => return Err(format!("Failed to parse QueryGateway: {}", e)),
     };
 
-    let content = match rsa::decrypt_content(&json.content, rsa_ver) {
-        Ok(content) => content,
+    let decrypted = match rsa::rsa_decrypt(&json.content, rsa_ver) {
+        Ok(decrypted) => decrypted,
         Err(e) => return Err(format!("Failed to decrypt content: {}", e)),
     };
 
-    match rsa::rsa_verify_sign(&content, &json.sign, rsa_ver) {
+    match rsa::rsa_verify_sign(&decrypted, &json.sign, rsa_ver) {
         Ok(true) => (),
         Ok(false) => return Err("Failed to verify sign".to_string()),
         Err(e) => return Err(format!("Failed to verify sign: {}", e)),
+    };
+
+    let content = match String::from_utf8(decrypted) {
+        Ok(s) => s,
+        Err(e) => return Err(format!("failed to convert to utf8: {}", e)),
     };
 
     return match serde_json::from_str::<RegionInfo>(&content) {

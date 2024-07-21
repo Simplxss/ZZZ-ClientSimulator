@@ -45,7 +45,7 @@ static PASSWORD_KEY: LazyLock<RsaPublicKey> = LazyLock::new(|| {
     .unwrap()
 });
 
-pub fn decrypt_content(content: &str, rsa_ver: u32) -> Result<String, String> {
+pub fn rsa_decrypt(content: &str, rsa_ver: u32) -> Result<Vec<u8>, String> {
     let priv_key = match RSAKEY_CONFIG.get_key_value(&rsa_ver) {
         Some((_, (client_public_key, _))) => client_public_key,
         None => return Err(format!("rsa_ver {} not found", rsa_ver)),
@@ -65,20 +65,17 @@ pub fn decrypt_content(content: &str, rsa_ver: u32) -> Result<String, String> {
         decrypted.extend_from_slice(&dec_chunk);
     }
 
-    return match String::from_utf8(decrypted) {
-        Ok(s) => Ok(s),
-        Err(e) => Err(format!("failed to convert to utf8: {}", e)),
-    };
+    return Ok(decrypted);
 }
 
-pub fn rsa_encrypt(content: &str, rsa_ver: u32) -> Result<String, String> {
+pub fn rsa_encrypt(content: &[u8], rsa_ver: u32) -> Result<String, String> {
     let pub_key = match RSAKEY_CONFIG.get_key_value(&rsa_ver) {
         Some((_, (_, server_private_key))) => server_private_key,
         None => return Err(format!("rsa_ver {} not found", rsa_ver)),
     };
 
     let encrypted =
-        match pub_key.encrypt(&mut rand::thread_rng(), Pkcs1v15Encrypt, content.as_bytes()) {
+        match pub_key.encrypt(&mut rand::thread_rng(), Pkcs1v15Encrypt, content) {
             Ok(encrypted) => encrypted,
             Err(e) => return Err(format!("failed to encrypt: {}", e)),
         };
@@ -86,7 +83,7 @@ pub fn rsa_encrypt(content: &str, rsa_ver: u32) -> Result<String, String> {
     return Ok(base64::encode(encrypted));
 }
 
-pub fn rsa_verify_sign(content: &str, sign: &str, rsa_ver: u32) -> Result<bool, String> {
+pub fn rsa_verify_sign(content: &[u8], sign: &str, rsa_ver: u32) -> Result<bool, String> {
     let verify_key = match RSAKEY_CONFIG.get_key_value(&rsa_ver) {
         Some((_, (_, server_private_key))) => {
             VerifyingKey::<Sha256>::new(server_private_key.clone())
@@ -103,7 +100,7 @@ pub fn rsa_verify_sign(content: &str, sign: &str, rsa_ver: u32) -> Result<bool, 
         Err(_) => return Err("failed to convert to signature".to_string()),
     };
 
-    return Ok(verify_key.verify(content.as_bytes(), &sign).is_ok());
+    return Ok(verify_key.verify(content, &sign).is_ok());
 }
 
 pub fn password_encrypt(password: &str) -> Result<String, String> {
